@@ -11,6 +11,7 @@ class Waldo(pygame.sprite.Sprite):
         waldo_walk = pygame.transform.rotozoom(waldo_walk, 0, 0.1)
         self.image = waldo_walk
         self.rect = self.image.get_rect(center = (200, 100))
+        self.attack_speed = 1
 
     def player_input(self):
         keys = pygame.key.get_pressed()
@@ -30,21 +31,33 @@ class Hit_Effect(pygame.sprite.Sprite):
     def __init__(self, type, frames, pos):
         super().__init__()
         if type == 'slash':
-            slash_img = pygame.image.load('graphics/Effects/slash_effect.png').convert_alpha()
+            slash_images = [pygame.image.load('graphics/Effects/slash_1.png').convert_alpha(),
+                            pygame.image.load('graphics/Effects/slash_2.png').convert_alpha(),
+                            pygame.image.load('graphics/Effects/slash_1.png').convert_alpha()]
+            slash_img = slash_images[slash_index]
+
             # find angle between click and player position to rotate the slash png
             player_pos = (player.sprite.rect.center)
             click_x, click_y = pos
             player_x, player_y = player_pos
             self.radians = math.atan2(click_x - player_x, player_y - click_y)
             self.angle = math.degrees(self.radians)
+
             # must multiply angle value by -1 because the rotozoom function rotates counterclockwise
-            slash_img = pygame.transform.rotozoom(slash_img, self.angle * -1, 0.1)
+            slash_img = pygame.transform.rotozoom(slash_img, self.angle * -1, 0.1 * (slash_index + 1))
             image = slash_img
             self.image = image
+
             # now that we have the angle between the click and the player, we can transpose the slash 100 units away from the player in that direction
             # to get distance transposed in the x axis, multiply 100 by sin(angle). for y, cos(angle)
             transposed_pos = (player_x + 100 * math.sin(self.radians), player_y - 100 * math.cos(self.radians))
             self.rect = self.image.get_rect(center = transposed_pos)
+
+            # add end lag frames to each slash
+            if slash_index == 0: end_lag_timers['slash'] = 20
+            elif slash_index == 1: end_lag_timers['slash'] = 25
+            elif slash_index == 2: end_lag_timers['slash'] = 60
+
         self.frames_left = frames
 
     def destroy(self):
@@ -61,6 +74,8 @@ class Hit_Effect(pygame.sprite.Sprite):
         #     print('math.cos(self.angle)', math.cos(self.angle))
         #     print('math.sin(self.angle)', math.sin(self.angle))
         self.frames_left -= 1
+        if end_lag_timers['slash'] > 0:
+            end_lag_timers['slash'] -= 1
         self.destroy()
 
 
@@ -80,8 +95,9 @@ hit_effect_group = pygame.sprite.Group()
 slash_pos = (0, 0)
 
 # Effects
-slash_img = pygame.image.load('graphics/Effects/slash_effect.png').convert_alpha()
-slash_img = pygame.transform.rotozoom(slash_img, 0, 0.1)
+end_lag_timers = {'slash': 0}
+slash_index = 0
+# time_since_last = {'lmb': float('inf')}
 
 # Intro Screen
 waldo_wave = pygame.image.load('graphics/Waldo/waldo_wave.png').convert_alpha()
@@ -111,14 +127,28 @@ while True:
                 keys = pygame.key.get_pressed()
                 if keys[pygame.K_SPACE]:
                     game_active = False
+                # print('slash_index', slash_index)
 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if pygame.mouse.get_pressed()[0]:
+                    # time_since_last['lmb'] = 0
                     slash_pos = event.pos
                     # print('slash', player.sprite.rect)
                     # print('x', player.sprite.rect.x)
                     # print('y', player.sprite.rect.y)
-                    hit_effect_group.add(Hit_Effect('slash', 30, slash_pos))
+                    if not end_lag_timers['slash'] or end_lag_timers['slash'] <= 10:
+                        # create a slash effect lasting different # of frames depending on slash_index
+                        if slash_index == 0:
+                            hit_effect_group.add(Hit_Effect('slash', 30, slash_pos))
+                        elif slash_index == 1:
+                            hit_effect_group.add(Hit_Effect('slash', 35, slash_pos))
+                        else:
+                            hit_effect_group.add(Hit_Effect('slash', 40, slash_pos))
+                        # increment slash_index after each new slash and reset it to 0 at the end of the combo
+                        if slash_index < 2: slash_index += 1
+                        else: slash_index = 0
+                    # print('slash_index', slash_index)
+
         else:
             if event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
                 game_active = True
@@ -135,6 +165,11 @@ while True:
 
         hit_effect_group.draw(screen)
         hit_effect_group.update()
+
+        # for key, value in time_since_last.items():
+        #     value += 1
+        # if time_since_last['lmb'] >= 300:
+        #     slash_index = 0
 
     else:
         screen.fill('Black')
