@@ -26,6 +26,42 @@ class Waldo(pygame.sprite.Sprite):
     def update(self):
         self.player_input()
 
+class Hit_Effect(pygame.sprite.Sprite):
+    def __init__(self, type, frames, pos):
+        super().__init__()
+        if type == 'slash':
+            slash_img = pygame.image.load('graphics/Effects/slash_effect.png').convert_alpha()
+            # find angle between click and player position to rotate the slash png
+            player_pos = (player.sprite.rect.center)
+            click_x, click_y = pos
+            player_x, player_y = player_pos
+            self.radians = math.atan2(click_x - player_x, player_y - click_y)
+            self.angle = math.degrees(self.radians)
+            # must multiply angle value by -1 because the rotozoom function rotates counterclockwise
+            slash_img = pygame.transform.rotozoom(slash_img, self.angle * -1, 0.1)
+            image = slash_img
+            self.image = image
+            # now that we have the angle between the click and the player, we can transpose the slash 100 units away from the player in that direction
+            # to get distance transposed in the x axis, multiply 100 by sin(angle). for y, cos(angle)
+            transposed_pos = (player_x + 100 * math.sin(self.radians), player_y - 100 * math.cos(self.radians))
+            self.rect = self.image.get_rect(center = transposed_pos)
+        self.frames_left = frames
+
+    def destroy(self):
+        if self.frames_left <= 0:
+            self.kill()
+
+    def update(self):
+        player_pos = (player.sprite.rect.center)
+        player_x, player_y = player_pos
+        transposed_pos = (player_x + 100 * math.sin(self.radians), player_y - 100 * math.cos(self.radians))
+        self.rect = self.image.get_rect(center = transposed_pos)
+        # if self.frames_left == 30:
+        #     print('angle', self.angle)
+        #     print('math.cos(self.angle)', math.cos(self.angle))
+        #     print('math.sin(self.angle)', math.sin(self.angle))
+        self.frames_left -= 1
+        self.destroy()
 
 
 pygame.init()
@@ -39,6 +75,13 @@ game_active = False
 # Groups
 player = pygame.sprite.GroupSingle()
 player.add(Waldo())
+
+hit_effect_group = pygame.sprite.Group()
+slash_pos = (0, 0)
+
+# Effects
+slash_img = pygame.image.load('graphics/Effects/slash_effect.png').convert_alpha()
+slash_img = pygame.transform.rotozoom(slash_img, 0, 0.1)
 
 # Intro Screen
 waldo_wave = pygame.image.load('graphics/Waldo/waldo_wave.png').convert_alpha()
@@ -68,6 +111,14 @@ while True:
                 keys = pygame.key.get_pressed()
                 if keys[pygame.K_SPACE]:
                     game_active = False
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if pygame.mouse.get_pressed()[0]:
+                    slash_pos = event.pos
+                    # print('slash', player.sprite.rect)
+                    # print('x', player.sprite.rect.x)
+                    # print('y', player.sprite.rect.y)
+                    hit_effect_group.add(Hit_Effect('slash', 30, slash_pos))
         else:
             if event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
                 game_active = True
@@ -81,6 +132,9 @@ while True:
 
         player.draw(screen)
         player.update()
+
+        hit_effect_group.draw(screen)
+        hit_effect_group.update()
 
     else:
         screen.fill('Black')
