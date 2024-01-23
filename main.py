@@ -16,19 +16,43 @@ class Waldo(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(center = (200, 100))
         self.attack_speed = 1
 
-    def player_input(self):
+    def player_input(self, camera_pos):
+        cam_x, cam_y = camera_pos
         keys = pygame.key.get_pressed()
         if keys[pygame.K_w] or keys[pygame.K_UP]:
             self.rect.y -= 5
+            cam_y += 5
         if keys[pygame.K_a] or keys[pygame.K_LEFT]:
             self.rect.x -= 5
+            cam_x += 5
         if keys[pygame.K_s] or keys[pygame.K_DOWN]:
             self.rect.y += 5
+            cam_y -= 5
         if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
             self.rect.x += 5
+            cam_x -= 5
+
+        # accounting for if the player moves to the bounds of the map
+        if self.rect.x <= 0:
+            self.rect.x = 0
+            cam_x = 0
+        elif self.rect.x >= 2296:
+            self.rect.x = 2296
+            cam_x = 2296
+        if self.rect.y <= 0:
+            self.rect.y = 0
+            cam_y = 0
+        elif self.rect.y >= 1090:
+            self.rect.y = 1090
+            cam_y = 1090
+
+        # return the camera position so we can blit the map to the current position
+        return (cam_x, cam_y)
 
     def update(self):
-        self.player_input()
+        self.player_input(camera_pos)
+        screen.blit(self.image, self.rect)
+        # world.blit(screen, self.rect)
 
 class Hit_Effect(pygame.sprite.Sprite):
     def __init__(self, type, frames, pos):
@@ -57,9 +81,9 @@ class Hit_Effect(pygame.sprite.Sprite):
             self.rect = self.image.get_rect(center = transposed_pos)
 
             # add end lag frames to each slash
-            if slash_index == 0: end_lag_timers['slash'] = 20
-            elif slash_index == 1: end_lag_timers['slash'] = 25
-            elif slash_index == 2: end_lag_timers['slash'] = 35
+            if slash_index == 0: end_lag_timers['slash'] = 40
+            elif slash_index == 1: end_lag_timers['slash'] = 45
+            elif slash_index == 2: end_lag_timers['slash'] = 50
 
         self.frames_left = frames
 
@@ -112,6 +136,17 @@ def Main(screen, clock):
     start_surf = bubble_font.render('Press any key to start.', False, 'Red')
     start_rect = start_surf.get_rect(center = (640, 540))
 
+    # Maps
+    mountain_terrain_surf = pygame.image.load('graphics/Terrain/mountain_terrain_template.png').convert()
+    mountain_terrain_surf = pygame.transform.rotozoom(mountain_terrain_surf, 0, 2.0)
+    # (2296, 1090)
+    global world
+    world = mountain_terrain_surf
+
+    # Camera
+    global camera_pos
+    camera_pos = (0, 0)
+
     # Filler
     in_game_font = pygame.font.Font('font/FortuneBrother-jE5wy.ttf', 50)
     in_prog_labels = ["Waldo's Gate is a work in progress.", "Use W, A, S, D or up, down, left, right arrow keys to move.", 'Press spacebar to return to the title screen.']
@@ -137,14 +172,14 @@ def Main(screen, clock):
                         # print('slash', player.sprite.rect)
                         # print('x', player.sprite.rect.x)
                         # print('y', player.sprite.rect.y)
-                        if not end_lag_timers['slash'] or end_lag_timers['slash'] <= 10:
+                        if end_lag_timers['slash'] <= 10:
                             # create a slash effect lasting different # of frames depending on slash_index
                             if slash_index == 0:
-                                hit_effect_group.add(Hit_Effect('slash', 30, slash_pos))
+                                hit_effect_group.add(Hit_Effect('slash', 45, slash_pos))
                             elif slash_index == 1:
-                                hit_effect_group.add(Hit_Effect('slash', 35, slash_pos))
+                                hit_effect_group.add(Hit_Effect('slash', 50, slash_pos))
                             else:
-                                hit_effect_group.add(Hit_Effect('slash', 40, slash_pos))
+                                hit_effect_group.add(Hit_Effect('slash', 55, slash_pos))
                             # increment slash_index after each new slash and reset it to 0 at the end of the combo
                             if slash_index < 2: slash_index += 1
                             else: slash_index = 0
@@ -155,22 +190,18 @@ def Main(screen, clock):
                     game_active = True
 
         if game_active:
-            screen.fill((55, 55, 55))
-            in_prog_y = 540
-            for surf in in_prog_surfs:
-                screen.blit(surf, surf.get_rect(center = (640, in_prog_y)))
-                in_prog_y += 60
+            # in_prog_y = 540
+            # for surf in in_prog_surfs:
+            #     screen.blit(surf, surf.get_rect(center = (640, in_prog_y)))
+            #     in_prog_y += 60
 
-            player.draw(screen)
+            camera_pos = player.sprite.player_input(camera_pos)
+            screen.blit(world, camera_pos)
+            player.draw(screen, world)
             player.update()
 
             hit_effect_group.draw(screen)
             hit_effect_group.update()
-
-            # for key, value in time_since_last.items():
-            #     value += 1
-            # if time_since_last['lmb'] >= 300:
-            #     slash_index = 0
 
         else:
             screen.fill('Black')
